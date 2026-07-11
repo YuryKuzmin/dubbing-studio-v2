@@ -317,7 +317,10 @@ st.caption(f"{tr.get('source_language', '?')} → {tr['target_language']} · "
 
 audio_url = (lang.get("outputs") or {}).get("lossless_audio")
 if audio_url:
-    st.audio(audio_url)
+    # ElevenLabs serves the same signed URL until it expires, and Streamlit only
+    # rebuilds the player when the src string changes — key it by output_revision
+    # so a regenerated dub always loads fresh audio.
+    st.audio(f"{audio_url}#rev={lang.get('output_revision')}")
     st.link_button("Download audio (link valid ~1 h — refresh the page for a fresh one)", audio_url)
 if lang["status"] == "stale":
     st.warning("The transcript changed after this audio was generated — regenerate to update it.")
