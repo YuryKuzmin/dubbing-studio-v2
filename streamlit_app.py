@@ -350,17 +350,30 @@ def do_regenerate():
             st.session_state.pop(f"draft_{seg['id']}", None)
         st.rerun()
     except RuntimeError as e:
-        st.error(str(e))
+        if "no edited regions" in str(e):
+            st.error("ElevenLabs reports nothing has changed since the last dub, so there is "
+                     "nothing to regenerate (and nothing was charged). Type your changes in the "
+                     "right column first — note that a page refresh clears unapplied drafts, and "
+                     "text identical to the left column doesn't count as a change.")
+        else:
+            st.error(str(e))
 
 
-n_changed = len(changed_segments())
+def regen_button(key):
+    n = len(changed_segments())
+    can_run = n > 0 or lang["status"] == "failed"
+    label = (f"Apply {n} change(s) & regenerate  ⚠ charged" if n
+             else ("Retry failed generation  ⚠ charged" if lang["status"] == "failed"
+                   else "Regenerate  ⚠ charged"))
+    if st.button(label, type="primary", key=key, disabled=not can_run):
+        do_regenerate()
+
+
 st.write("")
-top_label = (f"Apply {n_changed} change(s) & regenerate  ⚠ charged"
-             if n_changed else "Regenerate (no changes yet)  ⚠ charged")
-if st.button(top_label, type="primary", key="regen_top"):
-    do_regenerate()
-st.caption("Only filled-in segments on the right are sent. Regeneration is charged like a full "
-           "generation — batch all edits, then regenerate **once**.")
+regen_button("regen_top")
+st.caption("Only filled-in segments on the right that actually differ from the left are sent. "
+           "Regeneration is charged like a full generation — batch all edits, then regenerate "
+           "**once**. The button unlocks when at least one segment has changed.")
 
 h1, h2, h3 = st.columns([10, 1, 10])
 h1.markdown("**ElevenLabs translation**")
@@ -377,8 +390,4 @@ for seg in segments:
     c3.text_area("draft", key=f"draft_{seg['id']}", label_visibility="collapsed", height=100,
                  placeholder="Leave empty to keep the translation on the left")
 
-n_changed = len(changed_segments())
-if st.button(f"Apply {n_changed} change(s) & regenerate  ⚠ charged" if n_changed
-             else "Regenerate (no changes yet)  ⚠ charged",
-             type="primary", key="regen_bottom"):
-    do_regenerate()
+regen_button("regen_bottom")

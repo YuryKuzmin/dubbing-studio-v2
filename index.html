@@ -683,7 +683,7 @@
     const n = changedSegments().length;
     $("regen-hint-top").textContent = n
       ? `${n} segment${n > 1 ? "s" : ""} will be updated, then one charged regeneration runs.`
-      : "No changes yet — regenerating now would re-dub the same text (still charged).";
+      : "No changes yet — regeneration requires at least one actually-changed segment.";
   }
 
   // ---------------- 7: apply edits + regenerate ----------------
@@ -692,10 +692,12 @@
   async function regenerate() {
     clearErrors();
     const changed = changedSegments();
-    const msg = changed.length
-      ? `Send ${changed.length} edited segment(s) and regenerate the dub?\n\nRegeneration is charged like a full generation.`
-      : "No segment edits detected. Regenerate anyway? This is still charged.";
-    if (!confirm(msg)) return;
+    if (!changed.length) {
+      return showError("review",
+        "No changed segments to send — ElevenLabs only regenerates when at least one segment actually changed. " +
+        "Fill in the right column first (text identical to the left doesn't count).");
+    }
+    if (!confirm(`Send ${changed.length} edited segment(s) and regenerate the dub?\n\nRegeneration is charged like a full generation.`)) return;
 
     document.querySelectorAll("button.regen").forEach(b => b.disabled = true);
     try {
