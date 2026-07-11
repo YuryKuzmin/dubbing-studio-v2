@@ -647,7 +647,7 @@
       pill.className = "pill " + (lang.status === "completed" ? "ok" : lang.status === "stale" ? "warn" : "");
 
       currentAudioUrl = lang.outputs && lang.outputs.lossless_audio || null;
-      $("player").src = currentAudioUrl || "";
+      setPlayerSrc(lang);
 
       renderSegments();
       updateRegenHint();
@@ -757,11 +757,21 @@
   }
 
   // ---------------- audio helpers ----------------
+  function setPlayerSrc(lang) {
+    // ElevenLabs returns the same signed URL until it expires; key the player
+    // src by output_revision so a regenerated dub always loads fresh audio
+    // (the #fragment changes the URL identity without breaking the signature).
+    const player = $("player");
+    if (!currentAudioUrl) { player.removeAttribute("src"); return; }
+    player.src = `${currentAudioUrl}#rev=${lang.output_revision ?? ""}`;
+    player.load();
+  }
+
   $("btnFreshUrl").addEventListener("click", async () => {
     try {
       const lang = await api(`/v1/dubbing/project/${S.projectId}/language/${S.languageId}`);
       currentAudioUrl = lang.outputs && lang.outputs.lossless_audio || null;
-      $("player").src = currentAudioUrl || "";
+      setPlayerSrc(lang);
     } catch (e) {
       showError("review", e.message);
     }
