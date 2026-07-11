@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dubbing Studio V2</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --border: #e2e5ea;
+    --text: #1c2330; --muted: #6b7484; --faint: #98a0af;
+    --accent: #4f46e5; --accent-soft: #eef0ff;
+    --green: #16a34a; --amber: #d97706; --red: #dc2626;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 "Segoe UI", system-ui, sans-serif;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 20px 80px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px 20px; margin-bottom: 16px;
+  }
+  .panel h2 { font-size: 15px; margin: 0 0 12px; }
+
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  input[type=text], input[type=password] {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--border);
+    border-radius: 8px; font: inherit; background: #fff; color: var(--text);
+  }
+  input:focus, textarea:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .row > div { flex: 1; min-width: 160px; }
+
+  button {
+    font: inherit; border: 1px solid var(--border); border-radius: 8px;
+    background: #fff; color: var(--text); padding: 8px 16px; cursor: pointer;
+  }
+  button:hover { background: #f3f4f8; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button.primary:hover { background: #4338ca; }
+  button:disabled { opacity: .5; cursor: default; }
+  .btnrow { margin-top: 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+  .pill {
+    display: inline-block; padding: 2px 10px; border-radius: 99px;
+    font-size: 12px; font-weight: 600; background: var(--accent-soft); color: var(--accent);
+  }
+  .pill.ok { background: #e8f7ee; color: var(--green); }
+  .pill.warn { background: #fdf3e3; color: var(--amber); }
+  .pill.err { background: #fdeaea; color: var(--red); }
+
+  .statusline { color: var(--muted); font-size: 13px; }
+  .spinner {
+    display: inline-block; width: 13px; height: 13px; margin-right: 6px;
+    border: 2px solid var(--border); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -2px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .notice {
+    background: var(--accent-soft); border: 1px solid #dfe3ff; border-radius: 8px;
+    padding: 10px 14px; font-size: 13px; color: #3730a3; margin-bottom: 14px;
+  }
+  .error-box {
+    background: #fdeaea; border: 1px solid #f5c6c6; border-radius: 8px;
+    padding: 10px 14px; font-size: 13px; color: var(--red); margin-top: 12px;
+    white-space: pre-wrap; word-break: break-word; display: none;
+  }
+
+  /* segment editor */
+  .colheads {
+    display: grid; grid-template-columns: 1fr 44px 1fr; gap: 8px;
+    font-size: 12px; font-weight: 700; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .04em; margin: 14px 0 6px;
+  }
+  .seg {
+    display: grid; grid-template-columns: 1fr 44px 1fr; gap: 8px;
+    align-items: stretch; margin-bottom: 10px;
+  }
+  .seg .left, .seg textarea {
+    border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px;
+    background: #fbfbfd; font: inherit;
+  }
+  .seg .left .src { font-size: 12px; color: var(--faint); margin-bottom: 4px; }
+  .seg .left .meta { font-size: 11px; color: var(--faint); margin-top: 6px; }
+  .seg textarea {
+    width: 100%; resize: vertical; min-height: 100%; background: #fff; color: var(--text);
+  }
+  .seg textarea.changed { border-color: var(--amber); background: #fffdf5; }
+  .copybtn {
+    align-self: center; width: 38px; height: 38px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px; color: var(--accent); border: 1px solid var(--border); background: #fff;
+  }
+  .copybtn:hover { background: var(--accent-soft); }
+
+  /* source review list */
+  .srcseg { display: flex; gap: 8px; margin-bottom: 8px; align-items: flex-start; }
+  .srcseg .time { flex: 0 0 110px; font-size: 12px; color: var(--faint); padding-top: 10px; }
+  .srcseg textarea {
+    flex: 1; border: 1px solid var(--border); border-radius: 8px; padding: 8px 11px;
+    font: inherit; resize: vertical; background: #fff; color: var(--text);
+  }
+  .srcseg textarea.dirty { border-color: var(--amber); background: #fffdf5; }
+  .savedtick { color: var(--green); font-size: 12px; padding-top: 10px; width: 60px; }
+  .savedtick.warn { color: var(--amber); font-weight: 600; }
+
+  details.proof { margin-bottom: 16px; }
+  details.proof summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+  #proofText {
+    width: 100%; margin-top: 10px; border: 1px solid var(--border); border-radius: 8px;
+    padding: 9px 11px; font: inherit; resize: vertical; background: #fff; color: var(--text);
+  }
+
+  audio { width: 100%; margin-top: 8px; }
+  .hidden { display: none !important; }
+  .small { font-size: 12px; color: var(--muted); }
+  code { background: #f0f1f5; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Dubbing Studio V2</h1>
+  <div class="sub">ElevenLabs Dubbing Projects API — create, review, refine, regenerate</div>
+
+  <!-- ===================== SETUP ===================== -->
+  <div class="panel" id="panel-setup">
+    <h2>1 · New dubbing project</h2>
+    <div id="pwWrap" class="hidden">
+      <label>Access password</label>
+      <input type="password" id="appPw" placeholder="Ask the person who deployed this tool">
+    </div>
+    <div id="apiKeyWrap">
+      <label>ElevenLabs API key (stored only in this browser)</label>
+      <input type="password" id="apiKey" placeholder="xi-api-key">
+    </div>
+    <div class="row">
+      <div style="flex:2">
+        <label>Source video URL (YouTube Shorts / long-form)</label>
+        <input type="text" id="sourceUrl" placeholder="https://www.youtube.com/watch?v=...">
+      </div>
+      <div>
+        <label>Source language (optional, e.g. en — blank = auto-detect)</label>
+        <input type="text" id="sourceLang" placeholder="auto">
+      </div>
+      <div>
+        <label>Target language (ISO code)</label>
+        <input type="text" id="targetLang" list="langs" placeholder="e.g. hi">
+        <datalist id="langs">
+          <option value="hi">Hindi</option><option value="ta">Tamil</option>
+          <option value="te">Telugu</option><option value="kn">Kannada</option>
+          <option value="ml">Malayalam</option><option value="bn">Bengali</option>
+          <option value="mr">Marathi</option><option value="gu">Gujarati</option>
+          <option value="ru">Russian</option><option value="es">Spanish</option>
+          <option value="fr">French</option><option value="de">German</option>
+          <option value="pt">Portuguese</option><option value="zh">Chinese</option>
+          <option value="ja">Japanese</option><option value="ar">Arabic</option>
+        </datalist>
+      </div>
+    </div>
+    <label>Reference label (optional, to find the project later)</label>
+    <input type="text" id="reference" placeholder="e.g. July shorts batch #3">
+    <div class="btnrow">
+      <button class="primary" id="btnStart">Create project &amp; transcribe</button>
+      <span class="small">Transcription itself is not a dub generation — the paid step comes later.</span>
+    </div>
+    <div class="btnrow">
+      <span class="small">Resume an existing project instead:</span>
+      <input type="text" id="resumeId" placeholder="proj_..." style="width:320px">
+      <button id="btnResume">Resume</button>
+    </div>
+    <div class="error-box" id="err-setup"></div>
+  </div>
+
+  <!-- ===================== PROGRESS ===================== -->
+  <div class="panel hidden" id="panel-progress">
+    <h2 id="progress-title">Working…</h2>
+    <div class="statusline"><span class="spinner"></span><span id="progress-text">Starting…</span></div>
+    <div class="small" style="margin-top:8px">Project: <code id="progress-project">—</code></div>
+    <div class="error-box" id="err-progress"></div>
+  </div>
+
+  <!-- ===================== SOURCE REVIEW ===================== -->
+  <div class="panel hidden" id="panel-source">
+    <h2>2 · Review the source transcript <span class="pill ok">free to edit</span></h2>
+    <div class="notice">
+      Fix transcription mistakes <b>now</b>, before dubbing. Source edits cost nothing;
+      fixing them after the dub exists forces another paid regeneration. Edits save automatically when you click away from a segment.
+    </div>
+    <details class="proof" open>
+      <summary>Have a proofread transcript? Match it to their segmentation</summary>
+      <textarea id="proofText" rows="7" placeholder="Paste the full proofread transcript of this video. It will be redistributed into ElevenLabs' segments (their timing-aligned splits are kept), and only differing segments get updated."></textarea>
+      <div class="btnrow">
+        <button id="btnMatch">Match against segmentation</button>
+        <button id="btnApplyMatched" class="primary hidden">Save matched changes</button>
+        <span class="small" id="matchSummary"></span>
+      </div>
+    </details>
+    <div id="srcList"></div>
+    <div class="btnrow">
+      <button class="primary" id="btnAddLang">Source looks right — translate &amp; generate dub</button>
+      <span class="small">⚠ This is the first <b>charged</b> generation.</span>
+    </div>
+    <div class="error-box" id="err-source"></div>
+  </div>
+
+  <!-- ===================== TRANSLATION REVIEW ===================== -->
+  <div class="panel hidden" id="panel-review">
+    <h2>3 · Refine the translation
+      <span class="pill" id="langStatus">completed</span>
+    </h2>
+    <div class="small">Project <code id="rev-project">—</code> · Language <code id="rev-language">—</code> · <span id="rev-info"></span></div>
+
+    <div style="margin-top:12px">
+      <audio id="player" controls></audio>
+      <div class="btnrow" style="margin-top:6px">
+        <button id="btnDownload">Download audio</button>
+        <button id="btnFreshUrl">Refresh audio link</button>
+        <span class="small">Download links expire after ~1 hour — refresh if playback fails.</span>
+      </div>
+    </div>
+
+    <div class="btnrow" style="margin-top:18px">
+      <button class="primary regen">Apply changes &amp; regenerate</button>
+      <span class="small" id="regen-hint-top"></span>
+    </div>
+
+    <div class="colheads">
+      <div>ElevenLabs translation</div><div></div><div>Your changes</div>
+    </div>
+    <div id="segList"></div>
+
+    <div class="btnrow">
+      <button class="primary regen">Apply changes &amp; regenerate</button>
+      <span class="small">Only filled-in segments on the right are sent. Regeneration is charged like a full generation — batch all edits, then regenerate <b>once</b>.</span>
+    </div>
+    <div class="error-box" id="err-review"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ---------------- state ----------------
+  const S = {
+    projectId: null,
+    languageId: null,
+    targetLang: null,
+    segments: [],        // language transcript segments
+    drafts: {},          // segId -> right-column text (persisted)
+    pollTimer: null,
+  };
+
+  const $ = id => document.getElementById(id);
+  const panels = ["setup", "progress", "source", "review"];
+  function show(name) {
+    panels.forEach(p => $("panel-" + p).classList.toggle("hidden", p !== name));
+  }
+  function showError(where, msg) {
+    const box = $("err-" + where);
+    box.textContent = msg;
+    box.style.display = "block";
+  }
+  function clearErrors() {
+    panels.forEach(p => { const b = $("err-" + p); if (b) b.style.display = "none"; });
+  }
+
+  // ---------------- persistence ----------------
+  function saveState() {
+    localStorage.setItem("dub_state", JSON.stringify({
+      projectId: S.projectId, languageId: S.languageId, targetLang: S.targetLang,
+    }));
+    localStorage.setItem("dub_drafts_" + (S.languageId || ""), JSON.stringify(S.drafts));
+  }
+  function loadDrafts() {
+    try { S.drafts = JSON.parse(localStorage.getItem("dub_drafts_" + S.languageId)) || {}; }
+    catch { S.drafts = {}; }
+  }
+  $("apiKey").value = localStorage.getItem("dub_key") || "";
+  $("apiKey").addEventListener("change", () => localStorage.setItem("dub_key", $("apiKey").value.trim()));
+  $("appPw").value = localStorage.getItem("dub_pw") || "";
+  $("appPw").addEventListener("change", () => localStorage.setItem("dub_pw", $("appPw").value));
+
+  // ---------------- server config (hosted vs local mode) ----------------
+  let CONFIG = { password_required: false, server_key: false };
+  async function loadConfig() {
+    try {
+      CONFIG = await (await fetch("/config")).json();
+    } catch { /* older server without /config: behave like local mode */ }
+    $("apiKeyWrap").classList.toggle("hidden", CONFIG.server_key);
+    $("pwWrap").classList.toggle("hidden", !CONFIG.password_required);
+  }
+  function authHeaders() {
+    const h = { "x-app-password": $("appPw").value };
+    if (!CONFIG.server_key) h["x-api-key"] = $("apiKey").value.trim();
+    return h;
+  }
+  function credentialsMissing() {
+    if (CONFIG.password_required && !$("appPw").value) return "Enter the access password.";
+    if (!CONFIG.server_key && !$("apiKey").value.trim()) return "Enter your ElevenLabs API key.";
+    return null;
+  }
+
+  // ---------------- api ----------------
+  async function api(path, opts = {}) {
+    const headers = Object.assign(authHeaders(), opts.headers || {});
+    if (opts.json !== undefined) {
+      headers["Content-Type"] = "application/json";
+      opts.body = JSON.stringify(opts.json);
+    }
+    const resp = await fetch("/api" + path, { method: opts.method || "GET", headers, body: opts.body });
+    const text = await resp.text();
+    let data = null;
+    try { data = text ? JSON.parse(text) : null; } catch { data = { raw: text }; }
+    if (resp.status === 401 && data && data.error === "unauthorized") {
+      throw new Error("Access password missing or wrong — enter it in the first panel and retry.");
+    }
+    if (!resp.ok) {
+      const detail = data && (data.detail?.message || data.detail || data.error || text);
+      throw new Error(`${resp.status} ${resp.statusText}: ${typeof detail === "string" ? detail : JSON.stringify(detail)}`);
+    }
+    return data;
+  }
+
+  function stopPolling() { if (S.pollTimer) { clearTimeout(S.pollTimer); S.pollTimer = null; } }
+
+  // ---------------- 1: create / resume project ----------------
+  $("btnStart").addEventListener("click", async () => {
+    clearErrors();
+    const url = $("sourceUrl").value.trim();
+    const target = $("targetLang").value.trim();
+    const missing = credentialsMissing();
+    if (missing) return showError("setup", missing);
+    if (!url) return showError("setup", "Enter a source video URL.");
+    if (!target) return showError("setup", "Enter a target language code (e.g. hi).");
+    S.targetLang = target;
+
+    const fd = new FormData();
+    fd.append("source_url", url);
+    if ($("sourceLang").value.trim()) fd.append("source_language", $("sourceLang").value.trim());
+    if ($("reference").value.trim()) fd.append("reference", $("reference").value.trim());
+    fd.append("model_id", "dubbing_v2");
+
+    $("btnStart").disabled = true;
+    try {
+      const proj = await api("/v1/dubbing/project", { method: "POST", body: fd });
+      S.projectId = proj.project_id;
+      saveState();
+      pollProject();
+    } catch (e) {
+      showError("setup", e.message);
+    } finally {
+      $("btnStart").disabled = false;
+    }
+  });
+
+  $("btnResume").addEventListener("click", async () => {
+    clearErrors();
+    const pid = $("resumeId").value.trim();
+    const missing = credentialsMissing();
+    if (missing) return showError("setup", missing);
+    if (!pid) return showError("setup", "Enter a project id (proj_...).");
+    S.projectId = pid;
+    S.targetLang = $("targetLang").value.trim() || null;
+    saveState();
+    // if the project already has a language, jump straight to it
+    try {
+      const proj = await api(`/v1/dubbing/project/${pid}`);
+      if (proj.status !== "ready") { pollProject(); return; }
+      const langs = await api(`/v1/dubbing/project/${pid}/language`);
+      const list = langs.languages || [];
+      if (list.length) {
+        S.languageId = list[0].language_id;
+        S.targetLang = list[0].target_language;
+        saveState();
+        pollLanguage();
+      } else {
+        enterSourceReview();
+      }
+    } catch (e) {
+      showError("setup", e.message);
+    }
+  });
+
+  // ---------------- 2: poll project until ready ----------------
+  function pollProject() {
+    show("progress");
+    $("progress-title").textContent = "Preparing project";
+    $("progress-project").textContent = S.projectId;
+    const tick = async () => {
+      try {
+        const proj = await api(`/v1/dubbing/project/${S.projectId}`);
+        $("progress-text").textContent =
+          `Status: ${proj.status} — fetching & transcribing the source. This can take a few minutes.`;
+        if (proj.status === "ready") { enterSourceReview(); return; }
+        if (proj.status === "failed") {
+          showError("progress", "Project preparation failed — the source could not be fetched or decoded. Check the URL (it must be publicly reachable) and create a new project.");
+          return;
+        }
+        S.pollTimer = setTimeout(tick, 4000);
+      } catch (e) {
+        showError("progress", e.message);
+      }
+    };
+    tick();
+  }
+
+  // ---------------- 3: source transcript review ----------------
+  async function enterSourceReview() {
+    stopPolling();
+    try {
+      const tr = await api(`/v1/dubbing/project/${S.projectId}/transcript`);
+      renderSourceList(tr.segments || []);
+      show("source");
+    } catch (e) {
+      show("progress");
+      showError("progress", e.message);
+    }
+  }
+
+  function fmtTime(s) {
+    const m = Math.floor(s / 60), sec = (s % 60).toFixed(1).padStart(4, "0");
+    return `${m}:${sec}`;
+  }
+
+  function renderSourceList(segments) {
+    const list = $("srcList");
+    list.innerHTML = "";
+    S.srcRows = [];
+    segments.forEach(seg => {
+      const row = document.createElement("div");
+      row.className = "srcseg";
+      const time = document.createElement("div");
+      time.className = "time";
+      time.textContent = `${fmtTime(seg.start_s)} – ${fmtTime(seg.end_s)}`;
+      const ta = document.createElement("textarea");
+      ta.rows = 2;
+      ta.value = seg.text;
+      const tick = document.createElement("div");
+      tick.className = "savedtick";
+      ta.addEventListener("input", () => {
+        ta.classList.toggle("dirty", ta.value !== seg.text);
+        tick.textContent = "";
+      });
+      ta.addEventListener("blur", async () => {
+        if (ta.value === seg.text) return;
+        try {
+          const r = await api(`/v1/dubbing/project/${S.projectId}/transcript/segment/${seg.id}`,
+            { method: "PATCH", json: { text: ta.value } });
+          seg.text = r.segment.text;
+          ta.classList.remove("dirty");
+          tick.textContent = "saved";
+        } catch (e) {
+          showError("source", `Segment save failed: ${e.message}`);
+        }
+      });
+      row.append(time, ta, tick);
+      list.appendChild(row);
+      S.srcRows.push({ seg, ta, tick });
+    });
+  }
+
+  // ---------------- 3b: match a proofread transcript to their segmentation ----------------
+  $("btnMatch").addEventListener("click", async () => {
+    clearErrors();
+    const proof = $("proofText").value.trim();
+    if (!proof) return showError("source", "Paste your proofread transcript first.");
+    $("btnMatch").disabled = true;
+    try {
+      const resp = await fetch("/align", {
+        method: "POST",
+        headers: Object.assign({ "Content-Type": "application/json" }, authHeaders()),
+        body: JSON.stringify({
+          segments: S.srcRows.map(r => ({ id: r.seg.id, text: r.seg.text })),
+          proofread: proof,
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || resp.statusText);
+
+      const byId = Object.fromEntries(data.segments.map(s => [s.id, s]));
+      let changed = 0, flagged = 0;
+      S.srcRows.forEach(r => {
+        const m = byId[r.seg.id];
+        if (!m || !m.changed) { r.tick.textContent = ""; r.tick.className = "savedtick"; return; }
+        changed++;
+        r.ta.value = m.new_text;
+        r.ta.classList.add("dirty");
+        if (m.flagged) {
+          flagged++;
+          r.tick.textContent = "⚠ verify";
+          r.tick.className = "savedtick warn";
+        } else {
+          r.tick.textContent = "";
+          r.tick.className = "savedtick";
+        }
+      });
+      if (changed === 0) {
+        $("matchSummary").textContent = "Transcript already matches — nothing to change.";
+        $("btnApplyMatched").classList.add("hidden");
+      } else {
+        $("matchSummary").textContent =
+          `${changed} of ${S.srcRows.length} segments differ` +
+          (flagged ? ` — ${flagged} marked ⚠ need a manual look (a correction sits on a segment boundary)` : "") +
+          ". Review below, edit if needed, then save. Nothing is sent until you save.";
+        $("btnApplyMatched").classList.remove("hidden");
+        $("btnApplyMatched").textContent = `Save ${changed} matched changes`;
+      }
+    } catch (e) {
+      showError("source", `Matching failed: ${e.message}`);
+    } finally {
+      $("btnMatch").disabled = false;
+    }
+  });
+
+  $("btnApplyMatched").addEventListener("click", async () => {
+    clearErrors();
+    const pending = S.srcRows.filter(r => r.ta.value !== r.seg.text);
+    if (!pending.length) { $("matchSummary").textContent = "Nothing left to save."; return; }
+    $("btnApplyMatched").disabled = true;
+    let done = 0;
+    try {
+      for (const r of pending) {
+        const resp = await api(`/v1/dubbing/project/${S.projectId}/transcript/segment/${r.seg.id}`,
+          { method: "PATCH", json: { text: r.ta.value } });
+        r.seg.text = resp.segment.text;
+        r.ta.classList.remove("dirty");
+        r.tick.textContent = "saved";
+        r.tick.className = "savedtick";
+        done++;
+        $("matchSummary").textContent = `Saving… ${done}/${pending.length}`;
+      }
+      $("matchSummary").textContent = `Saved ${done} segments. Source edits are free — no generation was triggered.`;
+      $("btnApplyMatched").classList.add("hidden");
+    } catch (e) {
+      showError("source", `Saved ${done}/${pending.length} before an error: ${e.message}. Unsaved segments stay highlighted — click Save again to retry.`);
+    } finally {
+      $("btnApplyMatched").disabled = false;
+    }
+  });
+
+  // ---------------- 4: add language (first charged generation) ----------------
+  $("btnAddLang").addEventListener("click", async () => {
+    clearErrors();
+    if (!S.targetLang) {
+      S.targetLang = prompt("Target language ISO code (e.g. hi):", "") || "";
+      if (!S.targetLang.trim()) return;
+      S.targetLang = S.targetLang.trim();
+    }
+    $("btnAddLang").disabled = true;
+    try {
+      const lang = await api(`/v1/dubbing/project/${S.projectId}/language`,
+        { method: "POST", json: { target_language: S.targetLang } });
+      S.languageId = lang.language_id;
+      saveState();
+      pollLanguage();
+    } catch (e) {
+      showError("source", e.message);
+    } finally {
+      $("btnAddLang").disabled = false;
+    }
+  });
+
+  // ---------------- 5: poll language until completed ----------------
+  function pollLanguage() {
+    show("progress");
+    $("progress-title").textContent = "Generating dub";
+    $("progress-project").textContent = S.projectId;
+    const tick = async () => {
+      try {
+        const lang = await api(`/v1/dubbing/project/${S.projectId}/language/${S.languageId}`);
+        $("progress-text").textContent =
+          `Language ${lang.target_language}: ${lang.status} — translating and generating audio…`;
+        if (lang.status === "completed" || lang.status === "stale") { enterReview(lang); return; }
+        if (lang.status === "failed") {
+          showError("progress", "Dub generation failed. You can retry with 'Apply changes & regenerate' after resuming this project, or contact ElevenLabs if it persists.");
+          return;
+        }
+        S.pollTimer = setTimeout(tick, 5000);
+      } catch (e) {
+        showError("progress", e.message);
+      }
+    };
+    tick();
+  }
+
+  // ---------------- 6: two-column review ----------------
+  let currentAudioUrl = null;
+
+  async function enterReview(langObj) {
+    stopPolling();
+    loadDrafts();
+    try {
+      const lang = langObj || await api(`/v1/dubbing/project/${S.projectId}/language/${S.languageId}`);
+      const tr = await api(`/v1/dubbing/project/${S.projectId}/language/${S.languageId}/transcript`);
+      S.segments = tr.segments || [];
+
+      $("rev-project").textContent = S.projectId;
+      $("rev-language").textContent = S.languageId;
+      $("rev-info").textContent =
+        `${tr.source_language || "?"} → ${tr.target_language} · transcript revision ${tr.revision}, audio from revision ${lang.output_revision ?? "—"}`;
+
+      const pill = $("langStatus");
+      pill.textContent = lang.status;
+      pill.className = "pill " + (lang.status === "completed" ? "ok" : lang.status === "stale" ? "warn" : "");
+
+      currentAudioUrl = lang.outputs && lang.outputs.lossless_audio || null;
+      $("player").src = currentAudioUrl || "";
+
+      renderSegments();
+      updateRegenHint();
+      show("review");
+    } catch (e) {
+      show("progress");
+      showError("progress", e.message);
+    }
+  }
+
+  function renderSegments() {
+    const list = $("segList");
+    list.innerHTML = "";
+    S.segments.forEach(seg => {
+      const row = document.createElement("div");
+      row.className = "seg";
+
+      const left = document.createElement("div");
+      left.className = "left";
+      const src = document.createElement("div");
+      src.className = "src";
+      src.textContent = seg.source_text;
+      const tx = document.createElement("div");
+      tx.textContent = seg.translation ?? "(not translated yet)";
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.textContent = `${fmtTime(seg.start_s)} – ${fmtTime(seg.end_s)} · ${seg.speaker_id}`;
+      left.append(src, tx, meta);
+
+      const btn = document.createElement("button");
+      btn.className = "copybtn";
+      btn.title = "Copy translation to the editing column";
+      btn.textContent = "→";
+
+      const right = document.createElement("div");
+      const ta = document.createElement("textarea");
+      ta.rows = 2;
+      ta.placeholder = "Leave empty to keep the translation on the left";
+      ta.value = S.drafts[seg.id] || "";
+      const markChanged = () => {
+        const filled = ta.value.trim() !== "" && ta.value.trim() !== (seg.translation || "");
+        ta.classList.toggle("changed", filled);
+      };
+      markChanged();
+      ta.addEventListener("input", () => {
+        S.drafts[seg.id] = ta.value;
+        if (!ta.value.trim()) delete S.drafts[seg.id];
+        saveState();
+        markChanged();
+        updateRegenHint();
+      });
+      btn.addEventListener("click", () => {
+        ta.value = seg.translation || "";
+        ta.dispatchEvent(new Event("input"));
+        ta.focus();
+      });
+      right.appendChild(ta);
+
+      row.append(left, btn, right);
+      list.appendChild(row);
+    });
+  }
+
+  function changedSegments() {
+    return S.segments.filter(seg => {
+      const d = (S.drafts[seg.id] || "").trim();
+      return d !== "" && d !== (seg.translation || "").trim();
+    });
+  }
+
+  function updateRegenHint() {
+    const n = changedSegments().length;
+    $("regen-hint-top").textContent = n
+      ? `${n} segment${n > 1 ? "s" : ""} will be updated, then one charged regeneration runs.`
+      : "No changes yet — regenerating now would re-dub the same text (still charged).";
+  }
+
+  // ---------------- 7: apply edits + regenerate ----------------
+  document.querySelectorAll("button.regen").forEach(b => b.addEventListener("click", regenerate));
+
+  async function regenerate() {
+    clearErrors();
+    const changed = changedSegments();
+    const msg = changed.length
+      ? `Send ${changed.length} edited segment(s) and regenerate the dub?\n\nRegeneration is charged like a full generation.`
+      : "No segment edits detected. Regenerate anyway? This is still charged.";
+    if (!confirm(msg)) return;
+
+    document.querySelectorAll("button.regen").forEach(b => b.disabled = true);
+    try {
+      // 1. PATCH only populated, actually-different segments (edits are free)
+      for (const seg of changed) {
+        await api(`/v1/dubbing/project/${S.projectId}/language/${S.languageId}/transcript/segment/${seg.id}`,
+          { method: "PATCH", json: { translation: S.drafts[seg.id].trim() } });
+      }
+      // 2. one charged regenerate for the whole batch
+      await api(`/v1/dubbing/project/${S.projectId}/language/${S.languageId}/transcript/regenerate`,
+        { method: "POST" });
+      // applied drafts are now the language's translations; clear them
+      changed.forEach(seg => delete S.drafts[seg.id]);
+      saveState();
+      pollLanguage();
+    } catch (e) {
+      showError("review", `${e.message}\n\nYour edits in the right column are kept locally — fix the issue and try again.`);
+    } finally {
+      document.querySelectorAll("button.regen").forEach(b => b.disabled = false);
+    }
+  }
+
+  // ---------------- audio helpers ----------------
+  $("btnFreshUrl").addEventListener("click", async () => {
+    try {
+      const lang = await api(`/v1/dubbing/project/${S.projectId}/language/${S.languageId}`);
+      currentAudioUrl = lang.outputs && lang.outputs.lossless_audio || null;
+      $("player").src = currentAudioUrl || "";
+    } catch (e) {
+      showError("review", e.message);
+    }
+  });
+
+  $("btnDownload").addEventListener("click", async () => {
+    if (!currentAudioUrl) return showError("review", "No audio output available yet.");
+    const name = `dub_${S.targetLang || "out"}_${S.projectId}.wav`;
+    try {
+      const resp = await fetch("/audio?url=" + encodeURIComponent(currentAudioUrl) + "&name=" + encodeURIComponent(name),
+        { headers: authHeaders() });
+      if (!resp.ok) throw new Error(`${resp.status} ${resp.statusText}`);
+      const blob = await resp.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch (e) {
+      showError("review", `Download failed: ${e.message}`);
+    }
+  });
+
+  // ---------------- resume last session ----------------
+  (async function init() {
+    await loadConfig();
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem("dub_state")); } catch {}
+    if (saved && saved.projectId) {
+      $("resumeId").value = saved.projectId;
+      if (saved.languageId && !credentialsMissing()) {
+        S.projectId = saved.projectId;
+        S.languageId = saved.languageId;
+        S.targetLang = saved.targetLang;
+        pollLanguage();
+      }
+    }
+  })();
+})();
+</script>
+</body>
+</html>

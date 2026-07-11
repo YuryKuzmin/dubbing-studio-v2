@@ -1,0 +1,12 @@
+# never commit real credentials
+secrets.json
+
+# exe build artifacts
+dist/
+build/
+_embedded.py
+*.spec
+
+# local clutter
+__pycache__/
+*.pyc
