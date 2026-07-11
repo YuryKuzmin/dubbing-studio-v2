@@ -117,6 +117,8 @@
   }
 
   audio { width: 100%; margin-top: 8px; }
+  .panelbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .panelbar h2 { margin: 0; }
   .hidden { display: none !important; }
   .small { font-size: 12px; color: var(--muted); }
   code { background: #f0f1f5; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
@@ -177,7 +179,10 @@
 
   <!-- ===================== PROGRESS ===================== -->
   <div class="panel hidden" id="panel-progress">
-    <h2 id="progress-title">Working…</h2>
+    <div class="panelbar">
+      <h2 id="progress-title">Working…</h2>
+      <button class="newproject">＋ New project</button>
+    </div>
     <div class="statusline"><span class="spinner"></span><span id="progress-text">Starting…</span></div>
     <div class="small" style="margin-top:8px">Project: <code id="progress-project">—</code></div>
     <div class="error-box" id="err-progress"></div>
@@ -185,7 +190,10 @@
 
   <!-- ===================== SOURCE REVIEW ===================== -->
   <div class="panel hidden" id="panel-source">
-    <h2>2 · Review the source transcript</h2>
+    <div class="panelbar">
+      <h2>2 · Review the source transcript</h2>
+      <button class="newproject">＋ New project</button>
+    </div>
     <div class="notice">
       Fix transcription mistakes <b>now</b>, before dubbing — every language is translated from this text.
       Edits save automatically when you click away from a segment.
@@ -208,9 +216,12 @@
 
   <!-- ===================== TRANSLATION REVIEW ===================== -->
   <div class="panel hidden" id="panel-review">
-    <h2>3 · Refine the translation
-      <span class="pill" id="langStatus">completed</span>
-    </h2>
+    <div class="panelbar">
+      <h2>3 · Refine the translation
+        <span class="pill" id="langStatus">completed</span>
+      </h2>
+      <button class="newproject">＋ New project</button>
+    </div>
     <div class="small">Project <code id="rev-project">—</code> · Language <code id="rev-language">—</code> · <span id="rev-info"></span></div>
 
     <div style="margin-top:12px">
@@ -250,6 +261,7 @@
     segments: [],        // language transcript segments
     drafts: {},          // segId -> right-column text (persisted)
     pollTimer: null,
+    session: 0,          // bumped by "New project" so stale async flows die
   };
 
   const $ = id => document.getElementById(id);
@@ -325,6 +337,22 @@
 
   function stopPolling() { if (S.pollTimer) { clearTimeout(S.pollTimer); S.pollTimer = null; } }
 
+  // ---------------- new project (leave current one) ----------------
+  document.querySelectorAll("button.newproject").forEach(b => b.addEventListener("click", () => {
+    S.session++;
+    stopPolling();
+    clearErrors();
+    // keep the old project one click away: pre-fill the resume field
+    if (S.projectId) $("resumeId").value = S.projectId;
+    S.projectId = null;
+    S.languageId = null;
+    S.targetLang = null;
+    localStorage.removeItem("dub_state");
+    $("sourceUrl").value = "";
+    $("reference").value = "";
+    show("setup");
+  }));
+
   // ---------------- 1: create / resume project ----------------
   $("btnStart").addEventListener("click", async () => {
     clearErrors();
@@ -343,8 +371,10 @@
     fd.append("model_id", "dubbing_v2");
 
     $("btnStart").disabled = true;
+    const sess = S.session;
     try {
       const proj = await api("/v1/dubbing/project", { method: "POST", body: fd });
+      if (sess !== S.session) return;
       S.projectId = proj.project_id;
       saveState();
       pollProject();
@@ -364,11 +394,14 @@
     S.projectId = pid;
     S.targetLang = $("targetLang").value.trim() || null;
     saveState();
+    const sess = S.session;
     // if the project already has a language, jump straight to it
     try {
       const proj = await api(`/v1/dubbing/project/${pid}`);
+      if (sess !== S.session) return;
       if (proj.status !== "ready") { pollProject(); return; }
       const langs = await api(`/v1/dubbing/project/${pid}/language`);
+      if (sess !== S.session) return;
       const list = langs.languages || [];
       if (list.length) {
         S.languageId = list[0].language_id;
@@ -388,9 +421,11 @@
     show("progress");
     $("progress-title").textContent = "Preparing project";
     $("progress-project").textContent = S.projectId;
+    const sess = S.session;
     const tick = async () => {
       try {
         const proj = await api(`/v1/dubbing/project/${S.projectId}`);
+        if (sess !== S.session) return;
         $("progress-text").textContent =
           `Status: ${proj.status} — fetching & transcribing the source. This can take a few minutes.`;
         if (proj.status === "ready") { enterSourceReview(); return; }
@@ -409,8 +444,10 @@
   // ---------------- 3: source transcript review ----------------
   async function enterSourceReview() {
     stopPolling();
+    const sess = S.session;
     try {
       const tr = await api(`/v1/dubbing/project/${S.projectId}/transcript`);
+      if (sess !== S.session) return;
       renderSourceList(tr.segments || []);
       show("source");
     } catch (e) {
@@ -567,9 +604,11 @@
     show("progress");
     $("progress-title").textContent = "Generating dub";
     $("progress-project").textContent = S.projectId;
+    const sess = S.session;
     const tick = async () => {
       try {
         const lang = await api(`/v1/dubbing/project/${S.projectId}/language/${S.languageId}`);
+        if (sess !== S.session) return;
         $("progress-text").textContent =
           `Language ${lang.target_language}: ${lang.status} — translating and generating audio…`;
         if (lang.status === "completed" || lang.status === "stale") { enterReview(lang); return; }
@@ -591,9 +630,11 @@
   async function enterReview(langObj) {
     stopPolling();
     loadDrafts();
+    const sess = S.session;
     try {
       const lang = langObj || await api(`/v1/dubbing/project/${S.projectId}/language/${S.languageId}`);
       const tr = await api(`/v1/dubbing/project/${S.projectId}/language/${S.languageId}/transcript`);
+      if (sess !== S.session) return;
       S.segments = tr.segments || [];
 
       $("rev-project").textContent = S.projectId;
