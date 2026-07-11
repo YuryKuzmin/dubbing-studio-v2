@@ -335,10 +335,12 @@ def copy_translation(key, text):
 
 
 def changed_segments():
+    # any populated draft counts — resending identical text is the user's way of
+    # requesting a fresh take of that segment without changing the translation
     out = []
     for seg in segments:
         d = st.session_state.get(draft_key(seg["id"]), "").strip()
-        if d and d != (seg.get("translation") or "").strip():
+        if d:
             out.append((seg, d))
     return out
 
@@ -357,9 +359,9 @@ def do_regenerate():
     except RuntimeError as e:
         if "no edited regions" in str(e):
             st.error("ElevenLabs reports nothing has changed since the last dub, so there is "
-                     "nothing to regenerate. Type your changes in the right column first — note "
-                     "that a page refresh clears unapplied drafts, and text identical to the left "
-                     "column doesn't count as a change.")
+                     "nothing to regenerate. If you resent identical text hoping for a fresh "
+                     "take, ElevenLabs apparently ignores unchanged strings — tweak the "
+                     "punctuation or spelling slightly so the segment registers as edited.")
         else:
             st.error(str(e))
 
@@ -375,9 +377,9 @@ def regen_button(key):
 
 st.write("")
 regen_button("regen_top")
-st.caption("Only filled-in segments on the right that actually differ from the left are sent. "
-           "Batch all your edits, then regenerate **once** — the button unlocks when at least "
-           "one segment has changed.")
+st.caption("Every filled-in segment on the right is sent — copying a translation across with → "
+           "(even unchanged) requests a fresh take of that line. Batch all your edits, then "
+           "regenerate **once**.")
 
 h1, h2, h3 = st.columns([10, 1, 10])
 h1.markdown("**ElevenLabs translation**")

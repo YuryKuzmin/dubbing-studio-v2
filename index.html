@@ -245,7 +245,7 @@
 
     <div class="btnrow">
       <button class="primary regen">Apply changes &amp; regenerate</button>
-      <span class="small">Only filled-in segments on the right are sent. Batch all edits, then regenerate <b>once</b>.</span>
+      <span class="small">Every filled-in segment on the right is sent — → copying one across (even unchanged) requests a fresh take. Batch all edits, then regenerate <b>once</b>.</span>
     </div>
     <div class="error-box" id="err-review"></div>
   </div>
@@ -688,8 +688,7 @@
       ta.placeholder = "Leave empty to keep the translation on the left";
       ta.value = S.drafts[seg.id] || "";
       const markChanged = () => {
-        const filled = ta.value.trim() !== "" && ta.value.trim() !== (seg.translation || "");
-        ta.classList.toggle("changed", filled);
+        ta.classList.toggle("changed", ta.value.trim() !== "");
       };
       markChanged();
       ta.addEventListener("input", () => {
@@ -712,17 +711,16 @@
   }
 
   function changedSegments() {
-    return S.segments.filter(seg => {
-      const d = (S.drafts[seg.id] || "").trim();
-      return d !== "" && d !== (seg.translation || "").trim();
-    });
+    // any populated draft counts — resending identical text is how the user
+    // requests a fresh take of a segment without changing the translation
+    return S.segments.filter(seg => (S.drafts[seg.id] || "").trim() !== "");
   }
 
   function updateRegenHint() {
     const n = changedSegments().length;
     $("regen-hint-top").textContent = n
-      ? `${n} segment${n > 1 ? "s" : ""} will be updated, then one regeneration runs.`
-      : "No changes yet — regeneration requires at least one actually-changed segment.";
+      ? `${n} segment${n > 1 ? "s" : ""} will be sent, then one regeneration runs.`
+      : "No segments marked yet — fill in (or → copy) a segment on the right to include it.";
   }
 
   // ---------------- 7: apply edits + regenerate ----------------
@@ -733,8 +731,7 @@
     const changed = changedSegments();
     if (!changed.length) {
       return showError("review",
-        "No changed segments to send — ElevenLabs only regenerates when at least one segment actually changed. " +
-        "Fill in the right column first (text identical to the left doesn't count).");
+        "No segments marked to send — fill in a segment on the right, or → copy one across to request a fresh take of it.");
     }
     if (!confirm(`Send ${changed.length} edited segment(s) and regenerate the dub?`)) return;
 
