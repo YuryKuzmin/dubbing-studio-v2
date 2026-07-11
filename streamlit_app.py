@@ -5,9 +5,8 @@ Secrets (App settings -> Secrets, TOML):
     ELEVENLABS_API_KEY = "xi-..."
     APP_PASSWORD = "a-long-shared-password"   # optional but recommended
 
-Same credit-efficient flow as the local app:
-create -> free source review (with proofread-transcript matching) -> one charged
-generation -> edit only changed segments -> one charged regenerate.
+Flow: create -> source review (with proofread-transcript matching) -> generate
+dub -> edit only changed segments -> regenerate once.
 """
 
 import hmac
@@ -149,7 +148,6 @@ if not project_id:
                                    accept_new_options=True)
         reference = c3.text_input("Reference label (optional)")
         submitted = st.form_submit_button("Create project & transcribe", type="primary")
-    st.caption("Transcription itself is not a dub generation — the paid step comes later.")
 
     if submitted:
         if not source_url.strip():
@@ -216,9 +214,9 @@ if not language_id:
 # ================= 3. source review (free) =================
 
 if not language_id:
-    st.subheader("2 · Review the source transcript  🟢 free to edit")
-    st.info("Fix transcription mistakes **now**, before dubbing. Source edits cost nothing; "
-            "fixing them after the dub exists forces another paid regeneration.")
+    st.subheader("2 · Review the source transcript")
+    st.info("Fix transcription mistakes **now**, before dubbing — every language is translated "
+            "from this text.")
 
     tr = api("GET", f"/v1/dubbing/project/{project_id}/transcript")
     segments = tr.get("segments", [])
@@ -259,7 +257,7 @@ if not language_id:
     edited = [s for s in segments
               if st.session_state.get(f"src_{s['id']}", s["text"]).strip() != s["text"]]
     b1, b2 = st.columns([1, 2])
-    if edited and b1.button(f"Save {len(edited)} edited segment(s) — free", type="secondary"):
+    if edited and b1.button(f"Save {len(edited)} edited segment(s)", type="secondary"):
         prog = st.progress(0.0)
         try:
             for i, seg in enumerate(edited):
@@ -267,7 +265,7 @@ if not language_id:
                     {"text": st.session_state[f"src_{seg['id']}"].strip()})
                 prog.progress((i + 1) / len(edited))
             st.session_state.pop("match_results", None)
-            st.success(f"Saved {len(edited)} segments. No generation was triggered.")
+            st.success(f"Saved {len(edited)} segments.")
             time.sleep(1)
             st.rerun()
         except RuntimeError as e:
@@ -281,7 +279,7 @@ if not language_id:
                           placeholder="choose…", accept_new_options=True, key="target_pick")
     if edited:
         st.warning("You have unsaved source edits above — save them first, or they won't be dubbed.")
-    if st.button("Source looks right — translate & generate dub  ⚠ first charged generation",
+    if st.button("Source looks right — translate & generate dub",
                  type="primary", disabled=not target or bool(edited)):
         try:
             lang = api("POST", f"/v1/dubbing/project/{project_id}/language",
@@ -321,19 +319,25 @@ if audio_url:
     # rebuilds the player when the src string changes — key it by output_revision
     # so a regenerated dub always loads fresh audio.
     st.audio(f"{audio_url}#rev={lang.get('output_revision')}")
-    st.link_button("Download audio (link valid ~1 h — refresh the page for a fresh one)", audio_url)
+    st.link_button("Download audio", audio_url)
 if lang["status"] == "stale":
     st.warning("The transcript changed after this audio was generated — regenerate to update it.")
 
 
-def copy_translation(seg_id, text):
-    st.session_state[f"draft_{seg_id}"] = text
+def draft_key(seg_id):
+    # keyed by transcript revision: after a regenerate the revision bumps, every
+    # draft field gets a fresh identity, and the right column starts blank again
+    return f"draft_{seg_id}_r{tr['revision']}"
+
+
+def copy_translation(key, text):
+    st.session_state[key] = text
 
 
 def changed_segments():
     out = []
     for seg in segments:
-        d = st.session_state.get(f"draft_{seg['id']}", "").strip()
+        d = st.session_state.get(draft_key(seg["id"]), "").strip()
         if d and d != (seg.get("translation") or "").strip():
             out.append((seg, d))
     return out
@@ -341,7 +345,7 @@ def changed_segments():
 
 def do_regenerate():
     changed = changed_segments()
-    prog = st.progress(0.0, text="Sending edited segments (free)…")
+    prog = st.progress(0.0, text="Sending edited segments…")
     try:
         for i, (seg, draft) in enumerate(changed):
             api("PATCH",
@@ -349,15 +353,13 @@ def do_regenerate():
                 {"translation": draft})
             prog.progress((i + 1) / max(1, len(changed)))
         api("POST", f"/v1/dubbing/project/{project_id}/language/{language_id}/transcript/regenerate")
-        for seg, _ in changed:
-            st.session_state.pop(f"draft_{seg['id']}", None)
         st.rerun()
     except RuntimeError as e:
         if "no edited regions" in str(e):
             st.error("ElevenLabs reports nothing has changed since the last dub, so there is "
-                     "nothing to regenerate (and nothing was charged). Type your changes in the "
-                     "right column first — note that a page refresh clears unapplied drafts, and "
-                     "text identical to the left column doesn't count as a change.")
+                     "nothing to regenerate. Type your changes in the right column first — note "
+                     "that a page refresh clears unapplied drafts, and text identical to the left "
+                     "column doesn't count as a change.")
         else:
             st.error(str(e))
 
@@ -365,9 +367,8 @@ def do_regenerate():
 def regen_button(key):
     n = len(changed_segments())
     can_run = n > 0 or lang["status"] == "failed"
-    label = (f"Apply {n} change(s) & regenerate  ⚠ charged" if n
-             else ("Retry failed generation  ⚠ charged" if lang["status"] == "failed"
-                   else "Regenerate  ⚠ charged"))
+    label = (f"Apply {n} change(s) & regenerate" if n
+             else ("Retry failed generation" if lang["status"] == "failed" else "Regenerate"))
     if st.button(label, type="primary", key=key, disabled=not can_run):
         do_regenerate()
 
@@ -375,8 +376,8 @@ def regen_button(key):
 st.write("")
 regen_button("regen_top")
 st.caption("Only filled-in segments on the right that actually differ from the left are sent. "
-           "Regeneration is charged like a full generation — batch all edits, then regenerate "
-           "**once**. The button unlocks when at least one segment has changed.")
+           "Batch all your edits, then regenerate **once** — the button unlocks when at least "
+           "one segment has changed.")
 
 h1, h2, h3 = st.columns([10, 1, 10])
 h1.markdown("**ElevenLabs translation**")
@@ -388,9 +389,9 @@ for seg in segments:
         st.write(seg.get("translation") or "*(not translated yet)*")
         st.caption(f"{fmt_time(seg['start_s'])} – {fmt_time(seg['end_s'])} · {seg['speaker_id']}")
     c2.button("→", key=f"copy_{seg['id']}", on_click=copy_translation,
-              args=(seg["id"], seg.get("translation") or ""),
+              args=(draft_key(seg["id"]), seg.get("translation") or ""),
               help="Copy the translation into the editing column")
-    c3.text_area("draft", key=f"draft_{seg['id']}", label_visibility="collapsed", height=100,
+    c3.text_area("draft", key=draft_key(seg["id"]), label_visibility="collapsed", height=100,
                  placeholder="Leave empty to keep the translation on the left")
 
 regen_button("regen_bottom")

@@ -166,7 +166,6 @@
     <input type="text" id="reference" placeholder="e.g. July shorts batch #3">
     <div class="btnrow">
       <button class="primary" id="btnStart">Create project &amp; transcribe</button>
-      <span class="small">Transcription itself is not a dub generation — the paid step comes later.</span>
     </div>
     <div class="btnrow">
       <span class="small">Resume an existing project instead:</span>
@@ -186,10 +185,10 @@
 
   <!-- ===================== SOURCE REVIEW ===================== -->
   <div class="panel hidden" id="panel-source">
-    <h2>2 · Review the source transcript <span class="pill ok">free to edit</span></h2>
+    <h2>2 · Review the source transcript</h2>
     <div class="notice">
-      Fix transcription mistakes <b>now</b>, before dubbing. Source edits cost nothing;
-      fixing them after the dub exists forces another paid regeneration. Edits save automatically when you click away from a segment.
+      Fix transcription mistakes <b>now</b>, before dubbing — every language is translated from this text.
+      Edits save automatically when you click away from a segment.
     </div>
     <details class="proof" open>
       <summary>Have a proofread transcript? Match it to their segmentation</summary>
@@ -203,7 +202,6 @@
     <div id="srcList"></div>
     <div class="btnrow">
       <button class="primary" id="btnAddLang">Source looks right — translate &amp; generate dub</button>
-      <span class="small">⚠ This is the first <b>charged</b> generation.</span>
     </div>
     <div class="error-box" id="err-source"></div>
   </div>
@@ -236,7 +234,7 @@
 
     <div class="btnrow">
       <button class="primary regen">Apply changes &amp; regenerate</button>
-      <span class="small">Only filled-in segments on the right are sent. Regeneration is charged like a full generation — batch all edits, then regenerate <b>once</b>.</span>
+      <span class="small">Only filled-in segments on the right are sent. Batch all edits, then regenerate <b>once</b>.</span>
     </div>
     <div class="error-box" id="err-review"></div>
   </div>
@@ -533,7 +531,7 @@
         done++;
         $("matchSummary").textContent = `Saving… ${done}/${pending.length}`;
       }
-      $("matchSummary").textContent = `Saved ${done} segments. Source edits are free — no generation was triggered.`;
+      $("matchSummary").textContent = `Saved ${done} segments.`;
       $("btnApplyMatched").classList.add("hidden");
     } catch (e) {
       showError("source", `Saved ${done}/${pending.length} before an error: ${e.message}. Unsaved segments stay highlighted — click Save again to retry.`);
@@ -682,7 +680,7 @@
   function updateRegenHint() {
     const n = changedSegments().length;
     $("regen-hint-top").textContent = n
-      ? `${n} segment${n > 1 ? "s" : ""} will be updated, then one charged regeneration runs.`
+      ? `${n} segment${n > 1 ? "s" : ""} will be updated, then one regeneration runs.`
       : "No changes yet — regeneration requires at least one actually-changed segment.";
   }
 
@@ -697,7 +695,7 @@
         "No changed segments to send — ElevenLabs only regenerates when at least one segment actually changed. " +
         "Fill in the right column first (text identical to the left doesn't count).");
     }
-    if (!confirm(`Send ${changed.length} edited segment(s) and regenerate the dub?\n\nRegeneration is charged like a full generation.`)) return;
+    if (!confirm(`Send ${changed.length} edited segment(s) and regenerate the dub?`)) return;
 
     document.querySelectorAll("button.regen").forEach(b => b.disabled = true);
     try {
