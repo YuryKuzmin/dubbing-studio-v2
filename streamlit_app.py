@@ -81,18 +81,26 @@ def api(method, path, payload=None):
         raise RuntimeError(f"ElevenLabs {e.code}: {detail}") from None
 
 
-def api_multipart(path, fields):
+def api_multipart(path, fields, file=None):
+    """POST multipart/form-data; `file` is an optional (filename, bytes, mime) tuple."""
     boundary = "----dubstudio" + uuid.uuid4().hex
-    lines = []
+    body = bytearray()
     for k, v in fields.items():
-        lines += [f"--{boundary}", f'Content-Disposition: form-data; name="{k}"', "", str(v)]
-    lines += [f"--{boundary}--", ""]
-    body = "\r\n".join(lines).encode("utf-8")
-    req = urllib.request.Request(ELEVEN_BASE + path, data=body, method="POST")
+        body += (f"--{boundary}\r\n"
+                 f'Content-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n').encode("utf-8")
+    if file:
+        name, data, mime = file
+        body += (f"--{boundary}\r\n"
+                 f'Content-Disposition: form-data; name="file"; filename="{name}"\r\n'
+                 f"Content-Type: {mime}\r\n\r\n").encode("utf-8")
+        body += data + b"\r\n"
+    body += f"--{boundary}--\r\n".encode("utf-8")
+    req = urllib.request.Request(ELEVEN_BASE + path, data=bytes(body), method="POST")
     req.add_header("xi-api-key", API_KEY)
     req.add_header("Content-Type", f"multipart/form-data; boundary={boundary}")
     try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
+        # generous timeout: file uploads can take minutes
+        with urllib.request.urlopen(req, timeout=600) as resp:
             return json.loads(resp.read())
     except urllib.error.HTTPError as e:
         raise RuntimeError(f"ElevenLabs {e.code}: {e.read().decode('utf-8', errors='replace')}") from None
@@ -142,6 +150,8 @@ if not project_id:
     st.subheader("1 · New dubbing project")
     with st.form("create"):
         source_url = st.text_input("Source video URL (YouTube Shorts / long-form)")
+        upload = st.file_uploader("…or upload a video/audio file instead (e.g. a saved Instagram reel)",
+                                  type=["mp4", "mov", "webm", "mkv", "m4a", "mp3", "wav", "aac"])
         c1, c2, c3 = st.columns(3)
         source_lang = c1.text_input("Source language (blank = auto-detect)", placeholder="en")
         target_lang = c2.selectbox("Target language", LANGS, index=None, placeholder="choose…",
@@ -150,18 +160,26 @@ if not project_id:
         submitted = st.form_submit_button("Create project & transcribe", type="primary")
 
     if submitted:
-        if not source_url.strip():
-            st.error("Enter a source video URL.")
+        if not source_url.strip() and upload is None:
+            st.error("Enter a source video URL or upload a file.")
+        elif source_url.strip() and upload is not None:
+            st.error("Provide either a URL or a file — not both.")
         elif not target_lang:
             st.error("Choose a target language.")
         else:
-            fields = {"source_url": source_url.strip(), "model_id": "dubbing_v2"}
+            fields = {"model_id": "dubbing_v2"}
+            if upload is None:
+                fields["source_url"] = source_url.strip()
             if source_lang.strip():
                 fields["source_language"] = source_lang.strip()
             if reference.strip():
                 fields["reference"] = reference.strip()
+            file = None
+            if upload is not None:
+                file = (upload.name, upload.getvalue(), upload.type or "application/octet-stream")
             try:
-                proj = api_multipart("/v1/dubbing/project", fields)
+                with st.spinner("Uploading…" if file else "Creating project…"):
+                    proj = api_multipart("/v1/dubbing/project", fields, file=file)
                 st.session_state["target_lang"] = target_lang
                 set_ids(project_id=proj["project_id"])
                 st.rerun()

@@ -164,6 +164,8 @@
         </datalist>
       </div>
     </div>
+    <label>…or upload a video/audio file instead (e.g. a saved Instagram reel)</label>
+    <input type="file" id="sourceFile" accept="video/*,audio/*">
     <label>Reference label (optional, to find the project later)</label>
     <input type="text" id="reference" placeholder="e.g. July shorts batch #3">
     <div class="btnrow">
@@ -349,6 +351,7 @@
     S.targetLang = null;
     localStorage.removeItem("dub_state");
     $("sourceUrl").value = "";
+    $("sourceFile").value = "";
     $("reference").value = "";
     show("setup");
   }));
@@ -357,20 +360,24 @@
   $("btnStart").addEventListener("click", async () => {
     clearErrors();
     const url = $("sourceUrl").value.trim();
+    const file = $("sourceFile").files[0] || null;
     const target = $("targetLang").value.trim();
     const missing = credentialsMissing();
     if (missing) return showError("setup", missing);
-    if (!url) return showError("setup", "Enter a source video URL.");
+    if (!url && !file) return showError("setup", "Enter a source video URL or choose a file to upload.");
+    if (url && file) return showError("setup", "Provide either a URL or a file — not both.");
     if (!target) return showError("setup", "Enter a target language code (e.g. hi).");
     S.targetLang = target;
 
     const fd = new FormData();
-    fd.append("source_url", url);
+    if (file) fd.append("file", file);
+    else fd.append("source_url", url);
     if ($("sourceLang").value.trim()) fd.append("source_language", $("sourceLang").value.trim());
     if ($("reference").value.trim()) fd.append("reference", $("reference").value.trim());
     fd.append("model_id", "dubbing_v2");
 
     $("btnStart").disabled = true;
+    if (file) $("btnStart").textContent = "Uploading…";
     const sess = S.session;
     try {
       const proj = await api("/v1/dubbing/project", { method: "POST", body: fd });
@@ -382,6 +389,7 @@
       showError("setup", e.message);
     } finally {
       $("btnStart").disabled = false;
+      $("btnStart").textContent = "Create project & transcribe";
     }
   });
 

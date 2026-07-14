@@ -219,7 +219,8 @@ class Handler(BaseHTTPRequestHandler):
             req.add_header("Content-Type", ct)
 
         try:
-            with urllib.request.urlopen(req, timeout=120) as resp:
+            # generous timeout: file uploads to ElevenLabs can take minutes
+            with urllib.request.urlopen(req, timeout=600) as resp:
                 data = resp.read()
                 self._send(resp.status, data, resp.headers.get("Content-Type", "application/json"))
         except urllib.error.HTTPError as e:
