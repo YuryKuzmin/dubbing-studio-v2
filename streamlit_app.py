@@ -240,9 +240,10 @@ if not language_id:
     segments = tr.get("segments", [])
 
     with st.expander("Have a proofread transcript? Match it to their segmentation", expanded=True):
-        proof = st.text_area("Paste the full proofread transcript",
+        proof = st.text_area("Paste the full proofread transcript (plain text or SRT/VTT)",
                              height=160, key="proof_text",
-                             placeholder="It will be redistributed into ElevenLabs' timing-aligned "
+                             placeholder="Subtitle numbers and timecodes are stripped automatically. "
+                                         "The text is redistributed into ElevenLabs' timing-aligned "
                                          "segments; only differing segments get updated.")
         if st.button("Match against segmentation") and proof.strip():
             results = align_transcript(

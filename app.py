@@ -71,6 +71,28 @@ def _norm_word(w):
     return re.sub(r"[^\w']+", "", w, flags=re.UNICODE).lower()
 
 
+_TS = r"\d{1,2}:\d{2}:\d{2}[.,]\d{1,3}"
+
+
+def _strip_subtitle_markup(text):
+    """Remove SRT/VTT structure (cue numbers, timecodes) from a pasted transcript.
+
+    Handles both well-formed multi-line subtitle files and 'flowed' pastes where
+    line breaks were lost and counters/timestamps sit inline between words.
+    """
+    # inline unit: optional cue counter + "HH:MM:SS,mmm --> HH:MM:SS,mmm"
+    text = re.sub(rf"(?:(?<=\s)|^)\d{{1,4}}\s+{_TS}\s*-->\s*{_TS}", " ", text)
+    text = re.sub(rf"{_TS}\s*-->\s*{_TS}", " ", text)
+    text = re.sub(_TS, " ", text)  # stray leftover timecodes
+    lines = []
+    for line in text.splitlines():
+        s = line.strip()
+        if not s or s.upper().startswith("WEBVTT") or s.isdigit():
+            continue  # blank lines, VTT header, cue counters on their own line
+        lines.append(s)
+    return "\n".join(lines)
+
+
 def align_transcript(segments, proofread):
     """
     Redistribute a proofread transcript into ElevenLabs' segment boundaries.
@@ -81,6 +103,7 @@ def align_transcript(segments, proofread):
     Segments whose boundaries fall inside a mismatched region are flagged for
     manual review instead of being trusted blindly.
     """
+    proofread = _strip_subtitle_markup(proofread)
     proof_raw = proofread.split()
     proof_norm = [_norm_word(w) for w in proof_raw]
 
